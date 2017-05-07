@@ -70,7 +70,66 @@ Error_rate_test <- (confusion_test[1,2]+confusion_test[2,1])/ (confusion_test[1,
 Error_rate_test
 
 
+#Under Sampling Data
+#Taking all the observations with dependent variable = 1
+train_under <- train[train$spam==1,]
+
+#Randomly select observations with dependent variable = 0
+zeroObs <- train[train$spam==0,]
+set.seed(123457)
+rearrangedZeroObs <-  zeroObs[sample(nrow(zeroObs), length(train_under$spam)),]
+
+#Appending rows of randomly selected 0s in our undersampled data frame
+train_under <- rbind(train_under, rearrangedZeroObs)
+
+bfit_under <- glm(as.numeric(spam)~., data = train_under, family = "binomial")
+summary(bfit_under)
+
+predict_train_under <- predict(bfit_under, newdata = train_under[,1:47])
+t3_under <- ifelse(predict_train_under > 0.5,1,0)
+t3_under
+Confusion_train_under <- table(as.numeric(train_under$spam),t3_under)
+
+predict_test_under <- predict(bfit, newdata = test[,1:47])
+t4_under <- ifelse(predict_test_under > 0.5,1,0)
+t4_under
+confusion_test <- table(as.numeric(test$spam),t4_under)
+
+
+############oversampling data######################
+train_over <- train[train$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+  }
+train_over
+train_oversampling <- rbind(train, train_over)
+
+bfit_over <- glm(as.numeric(spam)~., data = train_oversampling, family = "binomial")
+summary(bfit_over)
+
+predict_train_over <- predict(bfit_over, newdata = train_oversampling[,1:47])
+t3_over <- ifelse(predict_train_over > 0.5,1,0)
+t3_over
+Confusion_train_over <- table(as.numeric(train_oversampling$spam),t3_over)
+
+predict_test_over <- predict(bfit_over, newdata = test[,1:47])
+t4_over <- ifelse(predict_test_over > 0.5,1,0)
+t4_over
+confusion_test_over <- table(as.numeric(test$spam),t4_over)
+
+library(DMwR)
+newData <- SMOTE(spam~., train, perc.over = 100)
+
+#################### Not Working right now############################
+#random forest
 library(randomForest)
+
+rf <- randomForest(spam ~.,
+                   data = train_under,
+                   sampsize = c(nrow(train_under$spam), nrow(train_under$spam)))
+predictions_rf <- predict(rf, test)
+results_rf[index_subj] <- predictions_rf
 
 set.seed(1)
 bag=randomForest(train$spam~.,data=train[,-1],mtry=48, importance=TRUE)
