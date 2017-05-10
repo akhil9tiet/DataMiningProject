@@ -50,7 +50,7 @@ library(mice)
 
 num.vars <- sapply(data, is.numeric)
 
-data[num.vars] <- lapply(data[num.vars], scale)
+#data[num.vars] <- lapply(data[num.vars], scale)  #scale the dataset
 
 Data <- data
 
@@ -63,6 +63,8 @@ Data$DEVELOPER_SITE <- NULL
 Data$DEVELOPER_CONTACT <- NULL
 Data$DEVELOPER_NAME <- NULL
 Data$MIN_REQUIRED_ANDROID <- NULL
+
+
 set.seed(123457)
 
 library(dummies)
@@ -85,10 +87,14 @@ ggplot(Data, aes(DOWNLOAD_MIN, PRICE, color = spam)) + geom_point() #plotting pr
 
 ##############  kmeans #######################
 metadata_knn<-function(k,ns){
+  
   km.out<-kmeans(Data,k, nstart=ns)
   km.out$centers
   Data2<-Data
+  #Data2$DOWNLOAD_MIN<- NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
+  #Data2$DOWNLOAD_MAX<-NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
   Data2$spam<-NULL
+  Data2$
   Data2$Cluster<-km.out$cluster
 
   tab<-table(Data$spam, Data2$Cluster)
@@ -97,18 +103,22 @@ metadata_knn<-function(k,ns){
   dataframe_tab<-data.frame(tab, names=c("SPAM","CLUSTER")) 
   dataframe_tab<-data.frame(tab) 
   nrow(dataframe_tab) 
-  
-  
   #plot(Data2, col =(km.out$cluster +1) , main="K-Means result", pch=20, cex=k)
-
   barplot(as.matrix(tab)/sum(tab),col=c('black'),ylim=c(0, 0.90), main="Barchart of spams in each cluster", xlab="Cluster", ylab="Probability") #distribution of spam apps across clusters
 
 }
 
-
 for( i in 2:15){
   metadata_knn(i,180)
 }
+###############################################################
+
+###########finding best kmeans with elbow chart#######################
+
+Data2<-Data
+Data2$spam<-NULL
+#Data2$DOWNLOAD_MIN<- NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
+#  Data2$DOWNLOAD_MAX<-NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
 
 #we plot the elbow curve as we want to minimize the within cluster sum of squares
 wss <- (nrow(Data2)-1)*sum(apply(Data2,2,var))
@@ -122,13 +132,21 @@ plot(1:15, wss, type="b", xlab="Number of Clusters",
      pch=20, cex=2)
 
 
-#we observe that after k =8 within-cluster dissimilarity is not substantial, hence k =8 is optimal
+#we observe that after k =8 within-cluster dissimilarity is not substantial, hence k =8 is optimal, using the orignal dataset
 
+#set.seed(7)
+#km2 = kmeans(Data2, 8, nstart=180)
+
+#par(mar = rep(2, 4))
+#plot(Data2, col =(km2$cluster +1) , main="K-Means result with 8 clusters", pch=20, cex=2)
+
+
+#when we have cleaned the data  we find k is best when 2.
 set.seed(7)
-km2 = kmeans(Data2, 8, nstart=180)
+km2 = kmeans(Data2, 2, nstart=180)
 
-par(mar = rep(2, 4))
-plot(Data2, col =(km2$cluster +1) , main="K-Means result with 8 clusters", pch=20, cex=2)
+
+plot(Data2, col =(km2$cluster +1) , main="K-Means result with 8 clusters")
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
