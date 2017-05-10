@@ -126,15 +126,16 @@ str(train_under)
 #tree.data<-tree((spam)~ CATEGORY+PRICE+CONTENT_RATING+DOWNLOAD_MAX+DOWNLOAD_MIN+TOTAL_REVIEWS+AVERAGE_RATING+X5RATING+X4RATING+X3RATING+X2RATING+X1RATING, data=train_under)
 
 
-treedata<-tree(factor(train_under$spam)~., data=train_under[1:52])
+treedata<-tree(factor(train_under$spam)~., data=train_under[1:51])
 summary(treedata)
 
 ###################################################################
 
-##############################Association Rule########################################
+#########################Association Rule########################################
 
+Data1<- data[c("DOWNLOAD_MIN","PRICE","AVERAGE_RATING","CONTENT_RATING.Everyone","CATEGORY.Entertainment","X2RATING","X5RATING")]
 
-######################################################################################
+#################################################################################
 
 
 
