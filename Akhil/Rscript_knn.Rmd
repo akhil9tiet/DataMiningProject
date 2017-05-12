@@ -122,11 +122,25 @@ km.out<-kmeans(Data,2, nstart=180)
   km.out$centers
   km.out$cluster
   Data2<-Data
-  #Data2$DOWNLOAD_MIN<- NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
-  #Data2$DOWNLOAD_MAX<-NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
-  Data2$spam<-NULL
-  Data2$
+   Data2$spam<-NULL
+  #Data2$
   Data2$Cluster<-km.out$cluster
+  
+  bnn<-km.out$cluster
+  
+  bnn
+  
+  data_hd<-cbind(data,bnn)
+  
+  cluster2<-data_hd[data_hd$bnn==2,]
+  
+  View(cluster2)
+  
+  cluster<-data[data$km.out.cluster==1]
+  sum(cluster$spam==1)
+  
+  
+  View(cluster)
   data <- cbind(data, km.out$cluster)
   #############################################################################################################
   library(xlsx)

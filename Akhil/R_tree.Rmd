@@ -158,10 +158,10 @@ Data1$CATEGORY <- as.factor(Data$CATEGORY)
 Data1$CONTENT_RATING <- as.factor(Data$CONTENT_RATING)
 Data1$spam <- as.factor(Data$spam)
 #rules<-apriori(Data1, parameter=list(supp=.01, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
-rules<-apriori(Data1, parameter=list(supp=.001, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
+rules<-apriori(Data1, parameter=list(supp=.01, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
 
 rules<-sort(rules ,decreasing=TRUE,by="confidence") 
-inspect(rules[1:5])
+inspect(rules[1:8])
 
 library(arulesViz)
 plot(rules,measure=c("confidence","support"),shading="lift")
