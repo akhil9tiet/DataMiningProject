@@ -2,10 +2,13 @@
 title: "Untitled"
 author: "Akhil Gupta"
 date: "May 10, 2017"
-output: word_document
+output:
+  html_document: default
+  word_document: default
 ---
 
-```{r setup, include=FALSE}
+```{r}
+#install.packages("plotly")
 library(shiny)
 library(dummies) 
 library(ggplot2) 
@@ -66,20 +69,8 @@ Data <- dummy.data.frame(Data, sep = ".", names = c("CATEGORY","CONTENT_RATING",
 #attach(Data)
 
 set.seed(12345)
-#df <- data.frame(CATEGORY,PRICE, CONTENT_RATING,DOWNLOAD_MIN,DOWNLOAD_MAX,MIN_REQ_ANDROID_FIRST,TOTAL_REVIEWS,AVERAGE_RATING)
-
-#df <- data.frame(Data$CATEGORY,Data$PRICE, Data$CONTENT_RATING,Data$DOWNLOAD_MIN,Data$DOWNLOAD_MAX,Data$MIN_REQ_ANDROID_FIRST,Data$TOTAL_REVIEWS,Data$AVERAGE_RATING)
-
-
-#data <- df
-#num.vars <- sapply(data, is.numeric)
-#data[num.vars] <- lapply(data[num.vars], scale)
-#df <- data
 
 df_new <- dummy.data.frame(df, names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"), sep = ".")
-#df_new <- cbind(df_new, spam)
-#df_new <- cbind(df_new, Data$spam)
-
 
 train_ind<-sample(nrow(Data),0.7*nrow(Data))
 train <- Data[train_ind,]
@@ -89,7 +80,7 @@ nrow(test)
 #View(test)
 
 ########################UNDERSAMPLING###########################
-#Under Sampling Data
+
 #Taking all the observations with dependent variable = 1
 train_under <- train[train$spam==1,]
 
@@ -121,24 +112,68 @@ colnames(train_under)[which(names(train_under) == "MIN_REQ_ANDROID_FIRST.Varies 
 str(train_under)
 
 
-###########################classification treee################################
+###########################classification treee ################################
 
-#tree.data<-tree((spam)~ CATEGORY+PRICE+CONTENT_RATING+DOWNLOAD_MAX+DOWNLOAD_MIN+TOTAL_REVIEWS+AVERAGE_RATING+X5RATING+X4RATING+X3RATING+X2RATING+X1RATING, data=train_under)
+#treedata<-tree(factor(train_under$spam)~., data=train_under)
+#summary(treedata)
+
+#plot(treedata) 
+#text(treedata, pretty=0)
 
 
-treedata<-tree(factor(train_under$spam)~., data=train_under[1:51])
-summary(treedata)
+#pruned tree
+#set.seed(1) 
+#cv.data=cv.tree(treedata,FUN=prune.misclass, K=10) 
+#names(cv.data)
+#plot(cv.data)
 
+#k =9 is the best value for the pruned tree
+#cv.data
+
+#prune.data1=prune.misclass(treedata,best=8) 
+#plot(prune.data1) 
+#text(prune.data1,pretty=0)
+
+
+#confusion matrix for the pruned tree
+
+#tree.pred=predict(prune.data1,test,type="class") 
+#cm_prune<-table(test$spam,tree.pred) 
+#cm_prune
+
+#nrow(test)
+#sum(as.numeric(test$spam==1))
+
+#accuracy_tree= (cm_prune[1,1]+cm_prune[2,2])/sum(cm_prune)
+#accuracy_tree
 ###################################################################
 
 #########################Association Rule########################################
+Data$MIN_REQ_ANDROID_FIRST <- as.factor(Data$MIN_REQ_ANDROID_FIRST)
+Data1<-Data[c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST","spam")]
+Data2<-dummy.data.frame(Data1, names=c(""))
+Data3<-data.frame(sapply(Data1, as.numeric))
+Data1$MIN_REQ_ANDROID_FIRST <- as.factor(Data$MIN_REQ_ANDROID_FIRST)
+Data1$CATEGORY <- as.factor(Data$CATEGORY)
+Data1$CONTENT_RATING <- as.factor(Data$CONTENT_RATING)
+Data1$spam <- as.factor(Data$spam)
+#rules<-apriori(Data1, parameter=list(supp=.01, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
+rules<-apriori(Data1, parameter=list(supp=.001, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
 
-Data1<- data[c("DOWNLOAD_MIN","PRICE","AVERAGE_RATING","CONTENT_RATING.Everyone","CATEGORY.Entertainment","X2RATING","X5RATING")]
+rules<-sort(rules ,decreasing=TRUE,by="confidence") 
+inspect(rules[1:5])
+
+library(arulesViz)
+plot(rules,measure=c("confidence","support"),shading="lift")
+
+plot(rules, method="matrix3D" ,measure="lift", shading="confidence")
 
 #################################################################################
 
 
 
-knitr::opts_chunk$set(echo = TRUE)
+
+
+
 ```
 

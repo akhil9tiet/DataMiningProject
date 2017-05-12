@@ -5,11 +5,13 @@ date: "May 7, 2017"
 output: word_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
 
 #install.packages("shiny")
 #install.packages("GGally")
 #install.packages("mice")
+
+library(plotly)
 
 library(shiny)
 library(dummies) 
@@ -113,14 +115,42 @@ for( i in 2:15){
 }
 ###############################################################
 
+
+#####################################################################################clustering for k =2#######################################
+
+km.out<-kmeans(Data,2, nstart=180)
+  km.out$centers
+  km.out$cluster
+  Data2<-Data
+  #Data2$DOWNLOAD_MIN<- NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
+  #Data2$DOWNLOAD_MAX<-NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
+  Data2$spam<-NULL
+  Data2$
+  Data2$Cluster<-km.out$cluster
+  data <- cbind(data, km.out$cluster)
+  #############################################################################################################
+  library(xlsx)
+  write.xlsx(data, "C:/Users/gupta/DataMiningProject/cluster.xlsx")
+  ################################################################################################################
+  tab<-table(Data$spam, Data2$Cluster)
+  tab
+
+  dataframe_tab<-data.frame(tab, names=c("SPAM","CLUSTER")) 
+  dataframe_tab<-data.frame(tab)
+  
+  
+  nrow(dataframe_tab) 
+  #plot(Data2, col =(km.out$cluster +1) , main="K-Means result", pch=20, cex=k)
+  barplot(as.matrix(tab)/sum(tab),col=c('black'),ylim=c(0, 1), main="Barchart of spams in each cluster", xlab="Cluster", ylab="Probability") #distribution of spam apps across clusters
+
+
+#####################################################################################################################################33
+
 ###########finding best kmeans with elbow chart#######################
 
 Data2<-Data
 Data2$spam<-NULL
-#Data2$DOWNLOAD_MIN<- NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
-#  Data2$DOWNLOAD_MAX<-NULL #this is done as we  use KNN Means to classify a new app, whether it will be a spam or not, so initially a new app will have essentially 0 downloads
 
-#we plot the elbow curve as we want to minimize the within cluster sum of squares
 wss <- (nrow(Data2)-1)*sum(apply(Data2,2,var))
 for(i in 2: 15){
   wss[i] <- sum(kmeans(Data2,centers=i)$withinss)
@@ -132,22 +162,32 @@ plot(1:15, wss, type="b", xlab="Number of Clusters",
      pch=20, cex=2)
 
 
-#we observe that after k =8 within-cluster dissimilarity is not substantial, hence k =8 is optimal, using the orignal dataset
-
-#set.seed(7)
-#km2 = kmeans(Data2, 8, nstart=180)
-
-#par(mar = rep(2, 4))
-#plot(Data2, col =(km2$cluster +1) , main="K-Means result with 8 clusters", pch=20, cex=2)
-
 
 #when we have cleaned the data  we find k is best when 2.
 set.seed(7)
+
+metadata_knn(2,20)
 km2 = kmeans(Data2, 2, nstart=180)
 
 
-plot(Data2, col =(km2$cluster +1) , main="K-Means result with 8 clusters")
+ggplot(Data2, col =(km2$cluster) , main="K-Means result with 2 clusters")
 
-knitr::opts_chunk$set(echo = TRUE)
+
+install.packages("HSAUR")
+library(cluster)
+library(HSAUR)
+data(pottery)
+
+graphics.off()
+ par("mar")
+ par(mar=c(1,1,1,1))
+#ggplot(Data2, col =(km2$cluster) , main="K-Means result with 2 clusters")+ geom_point()
+ 
+ 
+ 
+ #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$showing cluster$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+ 
+ ##########################################################################################################
+
 ```
 
