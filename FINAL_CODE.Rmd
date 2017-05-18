@@ -1,0 +1,1082 @@
+---
+title: "Final Submission"
+author: "Akhil Gupta, Arpit Kapoor, Harshit Gautam, Shreyansh Singhvi"
+date: "May 15, 2017"
+output: word_document
+---
+
+```{r}
+###################################################REGRESSIONS and ENSEMBLE##############
+library(dummies)
+library(GGally)
+DM <- read.csv(file = "app_metadata_cleaned_removed_min_downloads_above_5m.csv", header = TRUE)
+attach(DM)
+
+set.seed(12345)
+df <- data.frame(CATEGORY,PRICE, CONTENT_RATING,DOWNLOAD_MIN,MIN_REQ_ANDROID_FIRST,TOTAL_REVIEWS,AVERAGE_RATING)  ## Converting to data frame, selected variables based on exploratory analysis.
+
+data <- df
+num.vars <- sapply(data, is.numeric)
+data[num.vars] <- lapply(data[num.vars], scale)
+df <- data  
+
+df_new <- dummy.data.frame(df, names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"), sep = ".")
+df_new <- cbind(df_new, spam)
+ggcorr(DM)
+
+train_ind<-sample(nrow(df_new),0.7*nrow(df_new))         ####Sampling Data into training and testing
+train <- df_new[train_ind,]
+test <- df_new[-train_ind,]
+nrow(train)
+nrow(test)
+
+####### Logistic Regresssion in sampled data #######
+bfit <- glm(as.numeric(spam)~., data = train, family = "binomial")
+summary(bfit)
+
+predict_train <- predict(bfit, newdata = train[,1:45])
+t3 <- ifelse(predict_train > 0.5,1,0)
+#t3
+Confusion_train <- table(as.numeric(train$spam),t3)
+Confusion_train
+actual <- as.numeric(train$spam)
+Metrics <- c("AE","RMSE","MAE")
+x1 <- mean(actual-predict_train)
+x2 <- sqrt(mean((actual-predict_train)^2))
+x3 <- mean(abs(actual-predict_train))
+Values <- c(x1,x2,x3)
+X <- data.frame(Metrics,Values)
+X
+
+predict_test <- predict(bfit, newdata = test[,1:45])
+t4 <- ifelse(predict_test > 0.5,1,0)
+#t4
+confusion_test <- table(as.numeric(test$spam),t4)
+confusion_test
+actual_test <- as.numeric(test$spam)
+Metrics <- c("AE","RMSE","MAE")
+x1_test <- mean(actual_test-predict_test)
+x2_test <- sqrt(mean((actual_test-predict_test)^2))
+x3_test <- mean(abs(actual_test-predict_test))
+Values <- c(x1_test,x2_test,x3_test)
+X_test <- data.frame(Metrics,Values)
+X_test
+
+
+#Under Sampling Data
+#Taking all the observations with spam = 1
+train_under <- train[train$spam==1,]
+
+#Randomly select observations with spam = 0
+zero_spam <- train[train$spam==0,]
+set.seed(123457)
+rearrangedZero_spams <-  zero_spam[sample(nrow(zero_spam), length(train_under$spam)),]
+
+train_under <- rbind(train_under, rearrangedZero_spams)
+
+############## Logistic regression on undersampled data ########################
+bfit_under <- glm(as.numeric(spam)~., data = train_under, family = "binomial")
+summary(bfit_under)
+
+################## Predicting on the testing data set #########################
+predict_train_under <- predict(bfit_under, newdata = train_under[,1:44])
+t3_under <- ifelse(predict_train_under > 0.5,1,0)
+#t3_under
+Confusion_train_under <- table(as.numeric(train_under$spam),t3_under)
+Confusion_train_under
+
+pt = -2
+Accuracy_test_under <- rep(0,18)
+predict_test_under <- predict(bfit_under, newdata = test[,1:44])
+for (i in 1:16){
+  pt = pt +.1
+  print(pt) 
+  print(i)
+t4_under <- ifelse(predict_test_under > i,1,0)
+confusion_test_under <- table(as.numeric(test$spam),t4_under)
+confusion_test_under
+Accuracy_test_under[i] <- (confusion_test_under[1,1] + confusion_test_under[2,2])/(confusion_test_under[1,1] + confusion_test_under[1,2]
+                                                             + confusion_test_under[2,1] + confusion_test_under[2,2])
+Accuracy_test_under[i]
+print (Accuracy_test_under[i])
+}
+
+plot(c(1,20),c(0,1),type="n", xlab="k",ylab="Accuracy")
+lines(Accuracy_test_under,col="red")
+
+library(ROCR)
+#
+pred <- prediction( predict_train_under, train_under$spam)
+perf <- performance( pred, "tpr", "fpr" )
+
+t4_under <- ifelse(predict_test_under > .2459,1,0)
+confusion_test_under <- table(as.numeric(test$spam),t4_under)
+confusion_test_under
+
+#
+pred_val <- prediction( predict_test_under, test$spam)
+perf_val <- performance( pred_val, "tpr", "fpr" )
+
+plot( perf , col="red")
+plot (perf_val, add = TRUE, col="green")
+
+####################### Calculating best cutoff ########################
+perf <- performance( pred, "acc")
+perf_val <- performance( pred_val, "acc")
+plot( perf , show.spread.at=seq(0, 1, by=0.1), col="red")
+plot( perf_val , add= TRUE, show.spread.at=seq(0, 1, by=0.1), col="green")
+
+ind = which.max(slot(perf,"y.values")[[1]])
+acc=slot(perf,"y.values")[[1]][ind]
+cutoff = slot(perf,"x.values")[[1]][ind]
+print(c(accuracy= acc, cutoff= cutoff))
+
+
+############oversampling data######################
+train_over <- train[train$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+}
+#train_over
+train_oversampling <- rbind(train, train_over)
+
+##########################Logistic regression on oversampled data ###############
+bfit_over <- glm(as.numeric(spam)~., data = train_oversampling, family = "binomial")
+summary(bfit_over)
+
+#################### Predicting on testing data set#####################
+predict_train_over <- predict(bfit_over, newdata = train_oversampling[,1:44])
+t3_over <- ifelse(predict_train_over > 0.5,1,0)
+#t3_over
+Confusion_train_over <- table(as.numeric(train_oversampling$spam),t3_over)
+Confusion_train_over
+
+pt = -1
+Accuracy_test_over <- rep(0,20)
+predict_test_over <- predict(bfit_over, newdata = test[,1:44])
+for (i in 1:20){
+pt = pt +.1
+print(pt) 
+print(i)
+t4_over <- ifelse(predict_test_over > pt,1,0)
+confusion_test_over <- table(as.numeric(test$spam),t4_over)
+confusion_test_over
+Accuracy_test_over[i] <- (confusion_test_over[1,1] + confusion_test_over[2,2])/(confusion_test_over[1,1] + confusion_test_over[1,2]
+                                                                                   + confusion_test_over[2,1] + confusion_test_over[2,2])
+Accuracy_test_over[i]
+print (Accuracy_test_over[i])
+}
+
+plot(c(1,20),c(0,1),type="n", xlab="k",ylab="Accuracy")
+lines(Accuracy_test_over,col="red")
+
+library(ROCR)
+#
+pred_over <- prediction( predict_train_over, train_oversampling$spam)
+perf_over <- performance( pred_over, "tpr", "fpr" )
+
+t4_over <- ifelse(predict_test_over > .39896,1,0)
+confusion_test_over <- table(as.numeric(test$spam),t4_over)
+confusion_test_over
+
+################### Calculating the best cutoff ############################
+pred_val_over <- prediction( predict_test_over, test$spam)
+perf_val_over <- performance( pred_val_over, "tpr", "fpr" )
+
+plot( perf_over , col="red")
+plot (perf_val_over, add = TRUE, col="green")
+
+ind_over = which.max(slot(perf_over,"y.values")[[1]])
+acc_over = slot(perf_over,"y.values")[[1]][ind_over]
+cutoff_over = slot(perf_over,"x.values")[[1]][ind_over]
+print(c(accuracy= acc_over, cutoff= cutoff_over))
+
+
+###################Bagging + Random Forest + Boosting#####################
+
+Data <- dummy.data.frame(df, sep = ".", names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"))
+
+colnames(Data)[which(names(Data) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+colnames(train_under)[which(names(train_under) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+colnames(train_oversampling)[which(names(train_oversampling) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+colnames(test)[which(names(test) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+
+
+Data <- cbind(Data, spam)
+
+################# Sampling of Data ###############
+train_rf_ind <- sample(nrow(Data), .7 * nrow(Data))
+train_rf <- Data[train_rf_ind,]
+validation_rf <- Data[-train_rf_ind, ]
+
+library(MASS)
+library(tree)
+library(randomForest)
+set.seed(1)
+bag.boston=randomForest(factor(spam)~.,data = train_rf[,-1],mtry=44,importance=TRUE)
+bag.boston
+yhat.bag = predict(bag.boston,newdata=validation_rf)
+boston.test=validation_rf$spam
+t<- table(boston.test,yhat.bag)
+#t
+Accuracy_test_bag <- (t[1,1] + t[2,2])/(t[1,1] + t[1,2] + t[2,1] + t[2,2])
+Accuracy_test_bag
+
+importance(bag.boston)
+varImpPlot(bag.boston)
+
+##################### Bagging Undersampled data##################
+
+set.seed(1)
+
+################ Training the model #########################
+bag.boston=randomForest(factor(spam)~.,data = train_under[,-1],mtry=44,importance=TRUE)
+#bag.boston
+
+################# Prediction on the test data ###############
+yhat.bag = predict(bag.boston,newdata=test)
+boston.test=test$spam
+t<- table(boston.test,yhat.bag)
+#t
+Accuracy_test_bag <- (t[1,1] + t[2,2])/(t[1,1] + t[1,2] + t[2,1] + t[2,2])
+Accuracy_test_bag
+
+importance(bag.boston)
+varImpPlot(bag.boston)
+
+############################### Bagging Oversampled Data########################
+
+set.seed(1)
+bag.boston=randomForest(factor(spam)~.,data = train_oversampling[,-1],mtry=44,importance=TRUE)
+#bag.boston
+yhat.bag = predict(bag.boston,newdata=test)
+boston.test=test$spam
+t<- table(boston.test,yhat.bag)
+#t
+Accuracy_test_bag <- (t[1,1] + t[2,2])/(t[1,1] + t[1,2] + t[2,1] + t[2,2])
+Accuracy_test_bag
+
+importance(bag.boston)
+varImpPlot(bag.boston)
+
+################### Random Forest #########################
+train_rf$spam <- as.factor(train_rf$spam)
+set.seed(1)
+
+#################### Training the model ###################
+rf.boston=randomForest(spam~.,data = train_rf[,-1],mtry=7,importance=TRUE)
+#rf.boston
+
+################# Predicting the test data #######################
+yhat.rf = predict(rf.boston,newdata=validation_rf)
+boston.test=Data[-train_rf_ind,"spam"]
+
+t<- table(boston.test,yhat.rf)
+#t
+Accuracy_test_bag <- (t[1,1] + t[2,2])/(t[1,1] + t[1,2] + t[2,1] + t[2,2])
+Accuracy_test_bag
+
+importance(rf.boston)
+varImpPlot(rf.boston)
+
+################### Random Forest for Undersampled dataset #########################
+train_under$spam <- as.factor(train_under$spam)
+set.seed(1)
+
+###################### Training the model ####################
+rf.boston=randomForest(spam~.,data = train_under[,-1],mtry=7,importance=TRUE)
+#rf.boston
+
+##################### Predicting on the test data ################
+yhat.rf = predict(rf.boston,newdata=test)
+boston.test= test$spam
+
+t<- table(boston.test,yhat.rf)
+#t
+Accuracy_test_bag <- (t[1,1] + t[2,2])/(t[1,1] + t[1,2] + t[2,1] + t[2,2])
+Accuracy_test_bag
+
+importance(rf.boston)
+varImpPlot(rf.boston)
+
+################### Random Forest  for Oversampled Dataset #########################
+train_oversampling$spam <- as.factor(train_oversampling$spam)
+set.seed(1)
+rf.boston=randomForest(spam~.,data = train_oversampling[,-1],mtry=7,importance=TRUE)
+#rf.boston
+yhat.rf = predict(rf.boston,newdata=test)
+boston.test= test$spam
+
+t<- table(boston.test,yhat.rf)
+#t
+Accuracy_test_bag <- (t[1,1] + t[2,2])/(t[1,1] + t[1,2] + t[2,1] + t[2,2])
+Accuracy_test_bag
+
+importance(rf.boston)
+varImpPlot(rf.boston)
+
+################ Boosting - AdaBoost #####################
+library(gbm)
+set.seed(1)
+
+############## Training the model ##############################
+boost.boston=gbm(factor(spam)~.,data=train_rf,n.trees=5000,interaction.depth=4, dist="adaboost")
+boost.boston
+summary(boost.boston)
+par(mfrow=c(1,2))
+
+confusion <- function(a, b){
+  tbl <- table(a, b)
+  mis <- 1 - sum(diag(tbl))/sum(tbl)
+  list(table = tbl, misclass.prob = mis)
+}
+gbm.perf(boost.boston)
+
+################### Predicting the validation data #####################
+prediction <- predict.gbm(boost.boston, newdata = validation_rf, n.trees = 5000, type = "response")  
+
+CM1 <- table(prediction, validation_rf$spam)
+CM1
+
+plot(boost.boston,i="TOTAL_REVIEWS")
+
+yhat.boost=predict(boost.boston,newdata=validation_rf,n.trees=5000)
+mean((yhat.boost-boston.test)^2)
+
+############################ BOOSTING #############################
+boost.boston=gbm(spam~.,data=train_rf,distribution="gaussian",n.trees=5000,interaction.depth=4,shrinkage=0.2,verbose=F)
+
+################ Predicting the validation data ###########################
+yhat.boost=predict(boost.boston,newdata=validation_rf,n.trees=5000)
+CM1 <- table(yhat.boost, validation_rf$spam)
+CM1
+mean((yhat.boost-boston.test)^2)
+
+
+
+```
+
+
+```{r}
+
+############################################################TREES#########################
+# Uploading the file into R
+
+# creating duplicate copy of project
+data <- project
+# creating factors of independent variables and changing variables from integer to numeric
+data$CATEGORY <- as.factor(data$CATEGORY)
+data$PRICE <- as.numeric(data$PRICE)
+data$CONTENT_RATING <- as.factor(data$CONTENT_RATING)
+data$DOWNLOAD_MIN <- as.numeric(data$DOWNLOAD_MIN)
+data$DOWNLOAD_MAX <- as.numeric(data$DOWNLOAD_MAX)
+data$SIZE_MEGABYTES <- as.numeric(data$SIZE_MEGABYTES)
+data$MIN_REQ_ANDROID_FIRST <- as.factor(data$MIN_REQ_ANDROID_FIRST)
+data$TOTAL_REVIEWS <- as.numeric(data$TOTAL_REVIEWS)
+data$AVERAGE_RATING <- as.numeric(data$AVERAGE_RATING)
+data$X5RATING <- as.numeric(data$X5RATING)
+data$X4RATING <- as.numeric(data$X4RATING)
+data$X3RATING <- as.numeric(data$X3RATING)
+data$X2RATING <- as.numeric(data$X2RATING)
+data$X1RATING <- as.numeric(data$X1RATING)
+data$spam <- as.factor(data$spam)
+
+#setting seed and dividing the dataset into Training and Test
+set.seed(12345)
+train <- sample(nrow(data),0.7*nrow(data))
+project_training <- data[train,]
+project_Validation <- data[-train,]
+
+library(tree)
+library(ISLR)
+# creating the classification tree
+tree.project <- tree(spam~CATEGORY+PRICE+CONTENT_RATING+DOWNLOAD_MAX+DOWNLOAD_MIN+TOTAL_REVIEWS+AVERAGE_RATING+X5RATING+X4RATING+X3RATING+X2RATING+X1RATING,data = project_training)
+summary(tree.project) 
+
+#plotting the tree
+plot(tree.project)
+text(tree.project, pretty=6)
+
+# Creating confusion matrix of pridcted values in test data set 
+tree.predict <- predict(tree.project, project_Validation, type = "class")
+confmatrix <- table (project_Validation$spam,tree.predict)
+confmatrix
+
+#calculating the accuracy
+accuracy <- (confmatrix[1,1]+confmatrix[2,2])/sum(confmatrix)
+accuracy
+
+# calculating the sensitivity
+sensitivity <- confmatrix[2,2]/(confmatrix[2,2]+confmatrix[2,1])
+sensitivity
+
+#Under Sampling Data
+#Taking all the observations with dependent variable = 1
+train_under <- project_training[project_training$spam==1,]
+
+#Randomly select observations with dependent variable = 0
+zeroObs <- project_training[project_training$spam==0,]
+set.seed(123457)
+rearrangedZeroObs <-  zeroObs[sample(nrow(zeroObs), length(train_under$spam)),]
+
+#Appending rows of randomly selected 0s in our undersampled data frame
+train_under <- rbind(train_under, rearrangedZeroObs)
+
+# creating the classification tree
+tree.project <- tree(spam~CATEGORY+PRICE+CONTENT_RATING+DOWNLOAD_MAX+DOWNLOAD_MIN+TOTAL_REVIEWS+AVERAGE_RATING+X5RATING+X4RATING+X3RATING+X2RATING+X1RATING,data = train_under)
+summary(tree.project) 
+
+#plotting the tree
+plot(tree.project)
+text(tree.project, pretty=6)
+
+# Creating confusion matrix of pridcted values in test data set 
+tree.predict1 <- predict(tree.project, project_Validation, type = "class")
+confmatrix1 <- table (project_Validation$spam,tree.predict1)
+confmatrix1
+
+#calculating the accuracy
+accuracy1 <- (confmatrix1[1,1]+confmatrix1[2,2])/sum(confmatrix1)
+accuracy1
+
+# calculating the sensitivity
+sensitivity1 <- confmatrix1[2,2]/(confmatrix1[2,2]+confmatrix1[2,1])
+sensitivity1
+
+
+# Cross validation technique to find the best tree
+set.seed(123)
+cv.credit <- cv.tree(tree.project,FUN =prune.misclass, K=10)
+names(cv.credit)
+
+cv.credit
+
+#pruning the tree with best no. of terminal nodes
+prune.credit <- prune.misclass(tree.project, best =8)
+plot(prune.credit)
+text(prune.credit, pretty=0)
+
+summary(prune.credit)
+
+# Creating confusion matrix of pridcted values in test data set with pruned tree
+tree.predict2 <- predict(prune.credit, project_Validation, type = "class")
+confmatrix2 <- table (tree.predict2, project_Validation$spam)
+confmatrix2
+
+#calculating accuracy of pruned tree
+accuracy2 <- (confmatrix2[1,1]+confmatrix2[2,2])/sum(confmatrix2)
+accuracy2
+
+# calculating the sensitivity of pruned tree
+sensitivity2 <- confmatrix2[2,2]/(confmatrix2[1,2]+confmatrix2[2,2])
+sensitivity2
+
+#oversampling the data
+train_over <- project_training[project_training$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+}
+train_over
+train_oversampling <- rbind(project_training, train_over)
+
+# running classification tree on oversampled data
+tree.project <- tree(spam ~ CATEGORY+PRICE+CONTENT_RATING+DOWNLOAD_MAX+DOWNLOAD_MIN+TOTAL_REVIEWS+AVERAGE_RATING+X5RATING+X4RATING+X3RATING+X2RATING+X1RATING,data = train_oversampling)
+summary(tree.project) 
+
+#plotting the tree
+plot(tree.project)
+text(tree.project, pretty=6)
+
+# Creating confusion matrix 
+tree.predict3 <- predict(tree.project, project_Validation, type = "class")
+confmatrix3 <- table (tree.predict3, project_Validation$spam)
+confmatrix3
+
+# calculating accuracy
+accuracy3 <- (confmatrix3[1,1]+confmatrix3[2,2])/sum(confmatrix3)
+accuracy3
+
+# calculating the sensitivity
+sensitivity3 <- confmatrix3[2,2]/(confmatrix3[1,2]+confmatrix3[2,2])
+sensitivity3
+
+#running cross validation technique to fnd best tree
+set.seed(12345)
+cv.credit <- cv.tree(tree.project,FUN =prune.misclass, K=10)
+names(cv.credit)
+
+cv.credit
+
+#pruning the tree
+prune.credit <- prune.misclass(tree.project, best =4)
+plot(prune.credit)
+text(prune.credit, pretty=0)
+
+summary(prune.credit)
+
+# calcuate confusion matrix
+tree.predict4 <- predict(prune.credit, project_Validation, type = "class")
+confmatrix4 <- table (tree.predict4, project_Validation$spam)
+confmatrix4
+
+# calculating accuracy of pruned tree
+accuracy4 <- (confmatrix4[1,1]+confmatrix4[2,2])/sum(confmatrix4)
+accuracy4
+
+# calculating the sensitivity of pruned tree
+sensitivity4 <- confmatrix4[2,2]/(confmatrix4[1,2]+confmatrix4[2,2])
+sensitivity4
+
+```
+
+```{r}
+
+#############################################################KNN#########################
+#sampling
+data <- read.csv('C:/Users/hgsgautam/Desktop/subjects/projects/DataMining/DataMiningProject/app_metadata_cleaned_removed_min_downloads_above_5m.csv')
+attach(data)
+
+
+data$CATEGORY <- as.factor(data$CATEGORY)
+data$PRICE <- as.numeric(data$PRICE)
+data$CONTENT_RATING <- as.factor(data$CONTENT_RATING)
+data$DOWNLOAD_MIN <- as.numeric(data$DOWNLOAD_MIN)
+data$DOWNLOAD_MAX <- as.numeric(data$DOWNLOAD_MAX)
+data$SIZE_MEGABYTES <- as.numeric(data$SIZE_MEGABYTES)
+data$MIN_REQ_ANDROID_FIRST <- as.factor(data$MIN_REQ_ANDROID_FIRST)
+data$TOTAL_REVIEWS <- as.numeric(data$TOTAL_REVIEWS)
+data$AVERAGE_RATING <- as.numeric(data$AVERAGE_RATING)
+data$X5RATING <- as.numeric(data$X5RATING)
+data$X4RATING <- as.numeric(data$X4RATING)
+data$X3RATING <- as.numeric(data$X3RATING)
+data$X2RATING <- as.numeric(data$X2RATING)
+data$X1RATING <- as.numeric(data$X1RATING)
+data$spam <- as.factor(data$spam)
+
+set.seed(12345)
+
+df <- data.frame(CATEGORY,PRICE, CONTENT_RATING,DOWNLOAD_MIN,MIN_REQ_ANDROID_FIRST,TOTAL_REVIEWS,AVERAGE_RATING,spam)
+
+df$CATEGORY <- as.factor(df$CATEGORY)
+df$PRICE <- as.numeric(df$PRICE)
+df$CONTENT_RATING <- as.factor(df$CONTENT_RATING)
+df$DOWNLOAD_MIN <- as.numeric(df$DOWNLOAD_MIN)
+df$MIN_REQ_ANDROID_FIRST <- as.factor(df$MIN_REQ_ANDROID_FIRST)
+df$TOTAL_REVIEWS <- as.numeric(df$TOTAL_REVIEWS)
+df$AVERAGE_RATING <- as.numeric(df$AVERAGE_RATING)
+df$spam <- as.factor(df$spam)
+
+
+
+data <- df
+
+
+num.vars <- sapply(data, is.numeric)
+
+
+data[num.vars] <- lapply(data[num.vars], scale)
+
+Data <- data
+
+
+set.seed(123457)
+
+library(dummies)
+
+Data <- dummy.data.frame(Data, sep = ".", names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"))
+
+colnames(Data)[which(names(Data) == "CATEGORY.Arcade and Action")] <- "CATEGORY.ArcadeandAction"
+colnames(Data)[which(names(Data) == "CATEGORY.Books & Reference")] <- "CATEGORY.BooksReference"
+colnames(Data)[which(names(Data) == "CATEGORY.Brain and Puzzle")] <- "CATEGORY.BrainandPuzzle"
+colnames(Data)[which(names(Data) == "CATEGORY.Cards and Casino")] <- "CATEGORY.CardsandCasino"
+colnames(Data)[which(names(Data) == "CATEGORY.Health & Fitness")] <- "CATEGORY.HealthFitness"
+colnames(Data)[which(names(Data) == "CATEGORY.Libraries & Demo")] <- "CATEGORY.LibrariesDemo"
+colnames(Data)[which(names(Data) == "CATEGORY.Media & Video")] <- "CATEGORY.MediaVideo"
+colnames(Data)[which(names(Data) == "CATEGORY.Music & Audio")] <- "CATEGORY.MusicAudio"
+colnames(Data)[which(names(Data) == "CATEGORY.News & Magazines")] <- "CATEGORY.NewsMAgazines"
+colnames(Data)[which(names(Data) == "CATEGORY.Sports Games")] <- "CATEGORY.SportsGames"
+colnames(Data)[which(names(Data) == "CATEGORY.Travel & Local")] <- "CATEGORY.TravelLocal"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.High Maturity")] <- "CONTENT_RATING.HighMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Low Maturity")] <- "CONTENT_RATING.LowMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Medium Maturity")] <- "CONTENT_RATING.MediumMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Not rated")] <- "CONTENT_RATING.Notrated"
+colnames(Data)[which(names(Data) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+
+
+train <- sample(nrow(Data), .7 * nrow(Data))
+df_train <- Data[train,]
+df_validation <- Data[-train, ]
+
+
+
+#Under Sampling Data
+#Taking all the observations with dependent variable = 1
+train_under <- df_train[df_train$spam==1,]
+
+#Randomly select observations with dependent variable = 0
+zero_spam <- df_train[df_train$spam==0,]
+
+set.seed(123457)
+rearrangedZero_spams <-  zero_spam[sample(nrow(zero_spam), length(train_under$spam)),]
+
+train_under <- rbind(train_under, rearrangedZero_spams)
+
+
+
+
+train_over <- df_train[df_train$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+}
+train_oversampling <- rbind(df_train, train_over)
+
+
+train_input <- as.matrix(df_train[,-45])
+train_output <- as.vector(df_train[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+library("caret")
+library(class)
+kmax <- 15
+ER1 <- rep(0,kmax)
+ER2 <- rep(0,kmax)
+#
+for (i in 1:kmax){
+  prediction <- knn(train_input, train_input,train_output, k=i)
+  prediction2 <- knn(train_input, validate_input, train_output, k=i)
+  # The confusion matrix for training data is:
+  CM1 <- table(prediction, df_train$spam)
+  # The training error rate is:
+  ER1[i] <- (CM1[1,2]+CM1[2,1])/sum(CM1)
+  # The confusion matrix for validation data is: 
+  CM2 <- table(prediction2, df_validation$spam)
+  ER2[i] <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+}
+
+
+
+plot(c(1,kmax),c(0,1),type="n", xlab="k",ylab="Error Rate")
+lines(ER1,col="red")
+lines(ER2,col="blue")
+legend(10, 0.1, c("Training","Validation"),lty=c(3,1), col=c("red","blue"))
+z <- which.min(ER2)
+cat("Minimum Validation Error k:", z)
+
+
+
+# Scoring at optimal k
+prediction <- knn(train_input, train_input,train_output, k=3)
+prediction2 <- knn(train_input, validate_input,train_output, k=3)
+
+#
+CM1 <- table( df_train$spam, prediction)
+CM2 <- table( df_validation$spam, prediction2)
+
+CM1
+CM2
+
+ER3 <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+ER3
+
+Accuracy <- (CM2[1,1]+CM2[2,2])/sum(CM2)
+
+Accuracy
+
+#Undersampling
+data <- read.csv('app_metadata_cleaned_removed_min_downloads_above_5m.csv')
+attach(data)
+
+
+data$CATEGORY <- as.factor(data$CATEGORY)
+data$PRICE <- as.numeric(data$PRICE)
+data$CONTENT_RATING <- as.factor(data$CONTENT_RATING)
+data$DOWNLOAD_MIN <- as.numeric(data$DOWNLOAD_MIN)
+data$DOWNLOAD_MAX <- as.numeric(data$DOWNLOAD_MAX)
+data$SIZE_MEGABYTES <- as.numeric(data$SIZE_MEGABYTES)
+data$MIN_REQ_ANDROID_FIRST <- as.factor(data$MIN_REQ_ANDROID_FIRST)
+data$TOTAL_REVIEWS <- as.numeric(data$TOTAL_REVIEWS)
+data$AVERAGE_RATING <- as.numeric(data$AVERAGE_RATING)
+data$X5RATING <- as.numeric(data$X5RATING)
+data$X4RATING <- as.numeric(data$X4RATING)
+data$X3RATING <- as.numeric(data$X3RATING)
+data$X2RATING <- as.numeric(data$X2RATING)
+data$X1RATING <- as.numeric(data$X1RATING)
+data$spam <- as.factor(data$spam)
+
+set.seed(12345)
+
+df <- data.frame(CATEGORY,PRICE, CONTENT_RATING,DOWNLOAD_MIN,MIN_REQ_ANDROID_FIRST,TOTAL_REVIEWS,AVERAGE_RATING,spam)
+
+df$CATEGORY <- as.factor(df$CATEGORY)
+df$PRICE <- as.numeric(df$PRICE)
+df$CONTENT_RATING <- as.factor(df$CONTENT_RATING)
+df$DOWNLOAD_MIN <- as.numeric(df$DOWNLOAD_MIN)
+df$MIN_REQ_ANDROID_FIRST <- as.factor(df$MIN_REQ_ANDROID_FIRST)
+df$TOTAL_REVIEWS <- as.numeric(df$TOTAL_REVIEWS)
+df$AVERAGE_RATING <- as.numeric(df$AVERAGE_RATING)
+df$spam <- as.factor(df$spam)
+
+
+
+data <- df
+
+
+num.vars <- sapply(data, is.numeric)
+
+
+data[num.vars] <- lapply(data[num.vars], scale)
+
+Data <- data
+
+
+set.seed(123457)
+
+library(dummies)
+
+Data <- dummy.data.frame(Data, sep = ".", names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"))
+
+colnames(Data)[which(names(Data) == "CATEGORY.Arcade and Action")] <- "CATEGORY.ArcadeandAction"
+colnames(Data)[which(names(Data) == "CATEGORY.Books & Reference")] <- "CATEGORY.BooksReference"
+colnames(Data)[which(names(Data) == "CATEGORY.Brain and Puzzle")] <- "CATEGORY.BrainandPuzzle"
+colnames(Data)[which(names(Data) == "CATEGORY.Cards and Casino")] <- "CATEGORY.CardsandCasino"
+colnames(Data)[which(names(Data) == "CATEGORY.Health & Fitness")] <- "CATEGORY.HealthFitness"
+colnames(Data)[which(names(Data) == "CATEGORY.Libraries & Demo")] <- "CATEGORY.LibrariesDemo"
+colnames(Data)[which(names(Data) == "CATEGORY.Media & Video")] <- "CATEGORY.MediaVideo"
+colnames(Data)[which(names(Data) == "CATEGORY.Music & Audio")] <- "CATEGORY.MusicAudio"
+colnames(Data)[which(names(Data) == "CATEGORY.News & Magazines")] <- "CATEGORY.NewsMAgazines"
+colnames(Data)[which(names(Data) == "CATEGORY.Sports Games")] <- "CATEGORY.SportsGames"
+colnames(Data)[which(names(Data) == "CATEGORY.Travel & Local")] <- "CATEGORY.TravelLocal"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.High Maturity")] <- "CONTENT_RATING.HighMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Low Maturity")] <- "CONTENT_RATING.LowMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Medium Maturity")] <- "CONTENT_RATING.MediumMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Not rated")] <- "CONTENT_RATING.Notrated"
+colnames(Data)[which(names(Data) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+
+
+train <- sample(nrow(Data), .7 * nrow(Data))
+df_train <- Data[train,]
+df_validation <- Data[-train, ]
+
+
+
+#Under Sampling Data
+#Taking all the observations with dependent variable = 1
+train_under <- df_train[df_train$spam==1,]
+
+#Randomly select observations with dependent variable = 0
+zero_spam <- df_train[df_train$spam==0,]
+
+set.seed(123457)
+rearrangedZero_spams <-  zero_spam[sample(nrow(zero_spam), length(train_under$spam)),]
+
+train_under <- rbind(train_under, rearrangedZero_spams)
+
+
+
+
+train_over <- df_train[df_train$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+}
+train_oversampling <- rbind(df_train, train_over)
+
+
+train_input <- as.matrix(df_train[,-45])
+train_output <- as.vector(df_train[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+###################################### under sampling ###########################
+
+
+
+
+train_input <- as.matrix(train_under[,-45])
+train_output <- as.vector(train_under[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+library("caret")
+library(class)
+kmax <- 15
+ER1 <- rep(0,kmax)
+ER2 <- rep(0,kmax)
+#
+for (i in 1:kmax){
+  prediction <- knn(train_input, train_input,train_output, k=i)
+  prediction2 <- knn(train_input, validate_input, train_output, k=i)
+  # The confusion matrix for training data is:
+  CM1 <- table(prediction, train_under$spam)
+  # The training error rate is:
+  ER1[i] <- (CM1[1,2]+CM1[2,1])/sum(CM1)
+  # The confusion matrix for validation data is: 
+  CM2 <- table(prediction2, df_validation$spam)
+  ER2[i] <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+}
+
+
+
+plot(c(1,kmax),c(0,1),type="n", xlab="k",ylab="Error Rate")
+lines(ER1,col="red")
+lines(ER2,col="blue")
+legend(10, 0.1, c("Training","Validation"),lty=c(3,1), col=c("red","blue"))
+z <- which.min(ER2)
+cat("Minimum Validation Error k:", z)
+
+
+
+# Scoring at optimal k
+prediction <- knn(train_input, train_input,train_output, k=z)
+prediction2 <- knn(train_input, validate_input,train_output, k=z)
+
+#
+CM1 <- table( train_under$spam, prediction)
+CM2 <- table( df_validation$spam, prediction2)
+
+CM1
+CM2
+
+ER3 <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+ER3
+
+Accuracy <- (CM2[1,1]+CM2[2,2])/sum(CM2)
+
+Accuracy
+
+
+#oversampling
+
+data <- read.csv('app_metadata_cleaned_removed_min_downloads_above_5m.csv')
+attach(data)
+
+
+data$CATEGORY <- as.factor(data$CATEGORY)
+data$PRICE <- as.numeric(data$PRICE)
+data$CONTENT_RATING <- as.factor(data$CONTENT_RATING)
+data$DOWNLOAD_MIN <- as.numeric(data$DOWNLOAD_MIN)
+data$DOWNLOAD_MAX <- as.numeric(data$DOWNLOAD_MAX)
+data$SIZE_MEGABYTES <- as.numeric(data$SIZE_MEGABYTES)
+data$MIN_REQ_ANDROID_FIRST <- as.factor(data$MIN_REQ_ANDROID_FIRST)
+data$TOTAL_REVIEWS <- as.numeric(data$TOTAL_REVIEWS)
+data$AVERAGE_RATING <- as.numeric(data$AVERAGE_RATING)
+data$X5RATING <- as.numeric(data$X5RATING)
+data$X4RATING <- as.numeric(data$X4RATING)
+data$X3RATING <- as.numeric(data$X3RATING)
+data$X2RATING <- as.numeric(data$X2RATING)
+data$X1RATING <- as.numeric(data$X1RATING)
+data$spam <- as.factor(data$spam)
+
+set.seed(12345)
+
+df <- data.frame(CATEGORY,PRICE, CONTENT_RATING,DOWNLOAD_MIN,MIN_REQ_ANDROID_FIRST,TOTAL_REVIEWS,AVERAGE_RATING,spam)
+
+df$CATEGORY <- as.factor(df$CATEGORY)
+df$PRICE <- as.numeric(df$PRICE)
+df$CONTENT_RATING <- as.factor(df$CONTENT_RATING)
+df$DOWNLOAD_MIN <- as.numeric(df$DOWNLOAD_MIN)
+df$MIN_REQ_ANDROID_FIRST <- as.factor(df$MIN_REQ_ANDROID_FIRST)
+df$TOTAL_REVIEWS <- as.numeric(df$TOTAL_REVIEWS)
+df$AVERAGE_RATING <- as.numeric(df$AVERAGE_RATING)
+df$spam <- as.factor(df$spam)
+
+
+
+data <- df
+
+
+num.vars <- sapply(data, is.numeric)
+
+
+data[num.vars] <- lapply(data[num.vars], scale)
+
+Data <- data
+
+
+set.seed(123457)
+
+library(dummies)
+
+Data <- dummy.data.frame(Data, sep = ".", names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"))
+
+colnames(Data)[which(names(Data) == "CATEGORY.Arcade and Action")] <- "CATEGORY.ArcadeandAction"
+colnames(Data)[which(names(Data) == "CATEGORY.Books & Reference")] <- "CATEGORY.BooksReference"
+colnames(Data)[which(names(Data) == "CATEGORY.Brain and Puzzle")] <- "CATEGORY.BrainandPuzzle"
+colnames(Data)[which(names(Data) == "CATEGORY.Cards and Casino")] <- "CATEGORY.CardsandCasino"
+colnames(Data)[which(names(Data) == "CATEGORY.Health & Fitness")] <- "CATEGORY.HealthFitness"
+colnames(Data)[which(names(Data) == "CATEGORY.Libraries & Demo")] <- "CATEGORY.LibrariesDemo"
+colnames(Data)[which(names(Data) == "CATEGORY.Media & Video")] <- "CATEGORY.MediaVideo"
+colnames(Data)[which(names(Data) == "CATEGORY.Music & Audio")] <- "CATEGORY.MusicAudio"
+colnames(Data)[which(names(Data) == "CATEGORY.News & Magazines")] <- "CATEGORY.NewsMAgazines"
+colnames(Data)[which(names(Data) == "CATEGORY.Sports Games")] <- "CATEGORY.SportsGames"
+colnames(Data)[which(names(Data) == "CATEGORY.Travel & Local")] <- "CATEGORY.TravelLocal"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.High Maturity")] <- "CONTENT_RATING.HighMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Low Maturity")] <- "CONTENT_RATING.LowMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Medium Maturity")] <- "CONTENT_RATING.MediumMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Not rated")] <- "CONTENT_RATING.Notrated"
+colnames(Data)[which(names(Data) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+
+
+train <- sample(nrow(Data), .7 * nrow(Data))
+df_train <- Data[train,]
+df_validation <- Data[-train, ]
+
+
+
+#Under Sampling Data
+#Taking all the observations with dependent variable = 1
+train_under <- df_train[df_train$spam==1,]
+
+#Randomly select observations with dependent variable = 0
+zero_spam <- df_train[df_train$spam==0,]
+
+set.seed(123457)
+rearrangedZero_spams <-  zero_spam[sample(nrow(zero_spam), length(train_under$spam)),]
+
+train_under <- rbind(train_under, rearrangedZero_spams)
+
+
+
+
+train_over <- df_train[df_train$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+}
+train_oversampling <- rbind(df_train, train_over)
+
+
+train_input <- as.matrix(df_train[,-45])
+train_output <- as.vector(df_train[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+
+################################# Over sampling #####################################33
+
+
+
+
+train_input <- as.matrix(train_oversampling[,-45])
+train_output <- as.vector(train_oversampling[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+library("caret")
+library(class)
+kmax <- 15
+ER1 <- rep(0,kmax)
+ER2 <- rep(0,kmax)
+#
+for (i in 1:kmax){
+  prediction <- knn(train_input, train_input,train_output, k=i)
+  prediction2 <- knn(train_input, validate_input, train_output, k=i)
+  # The confusion matrix for training data is:
+  CM1 <- table(prediction, train_oversampling$spam)
+  # The training error rate is:
+  ER1[i] <- (CM1[1,2]+CM1[2,1])/sum(CM1)
+  # The confusion matrix for validation data is: 
+  CM2 <- table(prediction2, df_validation$spam)
+  ER2[i] <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+}
+
+
+
+plot(c(1,kmax),c(0,0.5),type="n", xlab="k",ylab="Error Rate")
+lines(ER1,col="red")
+lines(ER2,col="blue")
+legend(10, 0.1, c("Training","Validation"),lty=c(3,1), col=c("red","blue"))
+z <- which.min(ER2)
+cat("Minimum Validation Error k:", z)
+
+
+
+# Scoring at optimal k
+prediction <- knn(train_input, train_input,train_output, k=z)
+prediction2 <- knn(train_input, validate_input,train_output, k=z)
+
+#
+CM1 <- table( train_oversampling$spam, prediction)
+CM2 <- table( df_validation$spam, prediction2)
+
+CM1
+CM2
+
+ER3 <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+ER3
+
+
+Accuracy <- (CM2[1,1]+CM2[2,2])/sum(CM2)
+
+Accuracy
+
+```
+
+```{r}
+
+############################################################ASSOCIATION RULES############
+
+library(shiny)
+library(dummies) 
+#library(ggplot2) 
+library(caret) 
+#library(MASS) 
+#library(tree) 
+library(ISLR) 
+#library(cluster) 
+#library(fpc) 
+library(arules) 
+library(arulesViz)
+#library(GGally)
+#library(mice) #helps to fill values which are blank
+
+getwd();
+#setwd("C:/Users/gupta/DataMiningProject")
+data<-read.csv(file="app_metadata_cleaned_removed_min_downloads_above_5m.csv", header=TRUE)  #Reading the dataset
+
+num.vars <- sapply(data, is.numeric)
+
+Data <- data
+
+
+#setting the variables to null so that they do not come in our analysis. These variables are useless for our computations.
+Data$APP_ID <- NULL
+Data$APP_NAME <- NULL
+Data$DOWNLOADS <- NULL
+Data$CURRENT_VERSION <- NULL
+Data$LASTUPDATED <- NULL
+Data$DEVELOPER_SITE <- NULL
+Data$DEVELOPER_CONTACT <- NULL
+Data$DEVELOPER_NAME <- NULL
+Data$MIN_REQUIRED_ANDROID <- NULL
+
+Data$MIN_REQ_ANDROID_FIRST <- as.factor(Data$MIN_REQ_ANDROID_FIRST) #declare variable as a factor
+Data1<-Data[c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST","spam")] #for the association rules we will consider the following
+Data2<-dummy.data.frame(Data1, names=c("")) #Create dummy variables
+Data3<-data.frame(sapply(Data1, as.numeric)) #use the variables as numericals
+Data1$MIN_REQ_ANDROID_FIRST <- as.factor(Data$MIN_REQ_ANDROID_FIRST)
+Data1$CATEGORY <- as.factor(Data$CATEGORY)
+Data1$CONTENT_RATING <- as.factor(Data$CONTENT_RATING)
+Data1$spam <- as.factor(Data$spam)
+###association rules applied ###
+rules<-apriori(Data1, parameter=list(supp=.01, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
+
+rules<-sort(rules ,decreasing=TRUE,by="confidence") 
+inspect(rules[1:5])  #inspect the top 5 rules which were sorted by confidence
+
+library(arulesViz)
+plot(rules,measure=c("confidence","support"),shading="lift") #Plot the cofidence vs support and shade the life to get a good idea of where the rules range is 
+
+plot(rules, method="matrix3D" ,measure="lift") #this is a 3d representtion of all the antecedents and consequents with lift shown
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+

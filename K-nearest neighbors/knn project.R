@@ -1,0 +1,278 @@
+setwd("C:/Users/gupta/DataMiningProject")
+data <- read.csv('app_metadata_cleaned_removed_min_downloads_above_5m.csv')
+attach(data)
+
+
+mice (data)
+data$CATEGORY <- as.factor(data$CATEGORY)
+data$PRICE <- as.numeric(data$PRICE)
+data$CONTENT_RATING <- as.factor(data$CONTENT_RATING)
+data$DOWNLOAD_MIN <- as.numeric(data$DOWNLOAD_MIN)
+data$DOWNLOAD_MAX <- as.numeric(data$DOWNLOAD_MAX)
+data$SIZE_MEGABYTES <- as.numeric(data$SIZE_MEGABYTES)
+data$MIN_REQ_ANDROID_FIRST <- as.factor(data$MIN_REQ_ANDROID_FIRST)
+data$TOTAL_REVIEWS <- as.numeric(data$TOTAL_REVIEWS)
+data$AVERAGE_RATING <- as.numeric(data$AVERAGE_RATING)
+data$X5RATING <- as.numeric(data$X5RATING)
+data$X4RATING <- as.numeric(data$X4RATING)
+data$X3RATING <- as.numeric(data$X3RATING)
+data$X2RATING <- as.numeric(data$X2RATING)
+data$X1RATING <- as.numeric(data$X1RATING)
+data$spam <- as.factor(data$spam)
+
+set.seed(12345)
+
+df <- data.frame(CATEGORY,PRICE, CONTENT_RATING,DOWNLOAD_MIN,MIN_REQ_ANDROID_FIRST,TOTAL_REVIEWS,AVERAGE_RATING,spam)
+
+df$CATEGORY <- as.factor(df$CATEGORY)
+df$PRICE <- as.numeric(df$PRICE)
+df$CONTENT_RATING <- as.factor(df$CONTENT_RATING)
+df$DOWNLOAD_MIN <- as.numeric(df$DOWNLOAD_MIN)
+df$MIN_REQ_ANDROID_FIRST <- as.factor(df$MIN_REQ_ANDROID_FIRST)
+df$TOTAL_REVIEWS <- as.numeric(df$TOTAL_REVIEWS)
+df$AVERAGE_RATING <- as.numeric(df$AVERAGE_RATING)
+df$spam <- as.factor(df$spam)
+
+
+
+data <- df
+library(mice)
+
+
+num.vars <- sapply(data, is.numeric)
+
+
+data[num.vars] <- lapply(data[num.vars], scale)
+
+Data <- data
+
+
+set.seed(123457)
+
+library(dummies)
+
+Data <- dummy.data.frame(Data, sep = ".", names = c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST"))
+
+colnames(Data)[which(names(Data) == "CATEGORY.Arcade and Action")] <- "CATEGORY.ArcadeandAction"
+colnames(Data)[which(names(Data) == "CATEGORY.Books & Reference")] <- "CATEGORY.BooksReference"
+colnames(Data)[which(names(Data) == "CATEGORY.Brain and Puzzle")] <- "CATEGORY.BrainandPuzzle"
+colnames(Data)[which(names(Data) == "CATEGORY.Cards and Casino")] <- "CATEGORY.CardsandCasino"
+colnames(Data)[which(names(Data) == "CATEGORY.Health & Fitness")] <- "CATEGORY.HealthFitness"
+colnames(Data)[which(names(Data) == "CATEGORY.Libraries & Demo")] <- "CATEGORY.LibrariesDemo"
+colnames(Data)[which(names(Data) == "CATEGORY.Media & Video")] <- "CATEGORY.MediaVideo"
+colnames(Data)[which(names(Data) == "CATEGORY.Music & Audio")] <- "CATEGORY.MusicAudio"
+colnames(Data)[which(names(Data) == "CATEGORY.News & Magazines")] <- "CATEGORY.NewsMAgazines"
+colnames(Data)[which(names(Data) == "CATEGORY.Sports Games")] <- "CATEGORY.SportsGames"
+colnames(Data)[which(names(Data) == "CATEGORY.Travel & Local")] <- "CATEGORY.TravelLocal"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.High Maturity")] <- "CONTENT_RATING.HighMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Low Maturity")] <- "CONTENT_RATING.LowMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Medium Maturity")] <- "CONTENT_RATING.MediumMaturity"
+colnames(Data)[which(names(Data) == "CONTENT_RATING.Not rated")] <- "CONTENT_RATING.Notrated"
+colnames(Data)[which(names(Data) == "MIN_REQ_ANDROID_FIRST.Varies with device")] <- "MIN_REQ_ANDROID_FIRST.Varieswithdevice"
+
+
+train <- sample(nrow(Data), .7 * nrow(Data))
+df_train <- Data[train,]
+df_validation <- Data[-train, ]
+
+
+
+#Under Sampling Data
+#Taking all the observations with dependent variable = 1
+train_under <- df_train[df_train$spam==1,]
+
+#Randomly select observations with dependent variable = 0
+zero_spam <- df_train[df_train$spam==0,]
+
+set.seed(123457)
+rearrangedZero_spams <-  zero_spam[sample(nrow(zero_spam), length(train_under$spam)),]
+
+train_under <- rbind(train_under, rearrangedZero_spams)
+
+
+
+
+train_over <- df_train[df_train$spam==1,]
+train_1 <- train_over
+for (i in seq(from=1, to=6, by=1)){
+  train_over <- rbind(train_over, train_1)
+}
+train_over
+train_oversampling <- rbind(df_train, train_over)
+
+
+train_input <- as.matrix(df_train[,-45])
+train_output <- as.vector(df_train[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+
+################### Sampling #######################
+
+
+
+
+
+#install.packages('caret', dependencies = TRUE)
+library("caret")
+library(class)
+kmax <- 15
+ER1 <- rep(0,kmax)
+ER2 <- rep(0,kmax)
+#
+for (i in 1:kmax){
+  prediction <- knn(train_input, train_input,train_output, k=i)
+  prediction2 <- knn(train_input, validate_input, train_output, k=i)
+  
+  # The confusion matrix for training data is:
+  CM1 <- table(prediction, df_train$spam)
+  # The training error rate is:
+  ER1[i] <- (CM1[1,2]+CM1[2,1])/sum(CM1)
+  # The confusion matrix for validation data is: 
+  CM2 <- table(prediction2, df_validation$spam)
+  ER2[i] <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+}
+
+
+
+plot(c(1,kmax),c(0,1),type="n", xlab="k",ylab="Error Rate")
+lines(ER1,col="red")
+lines(ER2,col="blue")
+legend(10, 0.1, c("Training","Validation"),lty=c(3,1), col=c("red","blue"))
+z <- which.min(ER2)
+cat("Minimum Validation Error k:", z)
+
+
+
+# Scoring at optimal k
+prediction <- knn(train_input, train_input,train_output, k=3)
+prediction2 <- knn(train_input, validate_input,train_output, k=3)
+
+#
+CM1 <- table( df_train$spam, prediction)
+CM2 <- table( df_validation$spam, prediction2)
+
+CM1
+CM2
+
+ER3 <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+ER3
+
+Accuracy <- (CM2[1,1]+CM2[2,2])/sum(CM2)
+
+Accuracy
+
+###################################### under sampling ###########################
+
+
+
+
+train_input <- as.matrix(train_under[,-45])
+train_output <- as.vector(train_under[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+library("caret")
+library(class)
+kmax <- 15
+ER1 <- rep(0,kmax)
+ER2 <- rep(0,kmax)
+#
+for (i in 1:kmax){
+  prediction <- knn(train_input, train_input,train_output, k=i)
+  prediction2 <- knn(train_input, validate_input, train_output, k=i)
+  # The confusion matrix for training data is:
+  CM1 <- table(prediction, train_under$spam)
+  # The training error rate is:
+  ER1[i] <- (CM1[1,2]+CM1[2,1])/sum(CM1)
+  # The confusion matrix for validation data is: 
+  CM2 <- table(prediction2, df_validation$spam)
+  ER2[i] <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+}
+
+
+
+plot(c(1,kmax),c(0,0.1),type="n", xlab="k",ylab="Error Rate")
+lines(ER1,col="red")
+lines(ER2,col="blue")
+legend(10, 0.1, c("Training","Validation"),lty=c(3,1), col=c("red","blue"))
+z <- which.min(ER2)
+cat("Minimum Validation Error k:", z)
+
+
+
+# Scoring at optimal k
+prediction <- knn(train_input, train_input,train_output, k=z)
+prediction2 <- knn(train_input, validate_input,train_output, k=z)
+
+#
+CM1 <- table( train_under$spam, prediction)
+CM2 <- table( df_validation$spam, prediction2)
+
+CM1
+CM2
+
+ER3 <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+ER3
+
+Accuracy <- (CM2[1,1]+CM2[2,2])/sum(CM2)
+
+Accuracy
+
+################################# Over sampling #####################################33
+
+train_input <- as.matrix(train_oversampling[,-45])
+train_output <- as.vector(train_oversampling[,45])
+validate_input <- as.matrix(df_validation[,-45])
+
+
+
+library("caret")
+library(class)
+kmax <- 15
+ER1 <- rep(0,kmax)
+ER2 <- rep(0,kmax)
+#
+for (i in 1:kmax){
+  prediction <- knn(train_input, train_input,train_output, k=i)
+  prediction2 <- knn(train_input, validate_input, train_output, k=i)
+  # The confusion matrix for training data is:
+  CM1 <- table(prediction, train_oversampling$spam)
+  # The training error rate is:
+  ER1[i] <- (CM1[1,2]+CM1[2,1])/sum(CM1)
+  # The confusion matrix for validation data is: 
+  CM2 <- table(prediction2, df_validation$spam)
+  ER2[i] <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+}
+
+
+
+plot(c(1,kmax),c(0,0.1),type="n", xlab="k",ylab="Error Rate")
+lines(ER1,col="red")
+lines(ER2,col="blue")
+legend(10, 0.1, c("Training","Validation"),lty=c(3,1), col=c("red","blue"))
+z <- which.min(ER2)
+cat("Minimum Validation Error k:", z)
+
+
+
+# Scoring at optimal k
+prediction <- knn(train_input, train_input,train_output, k=z)
+prediction2 <- knn(train_input, validate_input,train_output, k=z)
+
+#
+CM1 <- table( train_oversampling$spam, prediction)
+CM2 <- table( df_validation$spam, prediction2)
+
+CM1
+CM2
+
+ER3 <- (CM2[1,2]+CM2[2,1])/sum(CM2)
+ER3
+
+
+Accuracy <- (CM2[1,1]+CM2[2,2])/sum(CM2)
+
+Accuracy

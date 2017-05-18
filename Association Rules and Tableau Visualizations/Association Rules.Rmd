@@ -1,0 +1,63 @@
+---
+title: "Untitled"
+author: "Akhil Gupta"
+date: "May 13, 2017"
+output: word_document
+---
+
+```{r}
+library(shiny)
+library(dummies) 
+#library(ggplot2) 
+library(caret) 
+#library(MASS) 
+#library(tree) 
+library(ISLR) 
+#library(cluster) 
+#library(fpc) 
+library(arules) 
+library(arulesViz)
+#library(GGally)
+#library(mice) #helps to fill values which are blank
+
+getwd();
+setwd("C:/Users/gupta/DataMiningProject")
+data<-read.csv(file="app_metadata_cleaned_removed_min_downloads_above_5m.csv", header=TRUE)  #Reading the dataset
+
+num.vars <- sapply(data, is.numeric)
+
+Data <- data
+
+
+#setting the variables to null so that they do not come in our analysis. These variables are useless for our computations.
+Data$APP_ID <- NULL
+Data$APP_NAME <- NULL
+Data$DOWNLOADS <- NULL
+Data$CURRENT_VERSION <- NULL
+Data$LASTUPDATED <- NULL
+Data$DEVELOPER_SITE <- NULL
+Data$DEVELOPER_CONTACT <- NULL
+Data$DEVELOPER_NAME <- NULL
+Data$MIN_REQUIRED_ANDROID <- NULL
+
+Data$MIN_REQ_ANDROID_FIRST <- as.factor(Data$MIN_REQ_ANDROID_FIRST) #declare variable as a factor
+Data1<-Data[c("CATEGORY","CONTENT_RATING","MIN_REQ_ANDROID_FIRST","spam")] #for the association rules we will consider the following
+Data2<-dummy.data.frame(Data1, names=c("")) #Create dummy variables
+Data3<-data.frame(sapply(Data1, as.numeric)) #use the variables as numericals
+Data1$MIN_REQ_ANDROID_FIRST <- as.factor(Data$MIN_REQ_ANDROID_FIRST)
+Data1$CATEGORY <- as.factor(Data$CATEGORY)
+Data1$CONTENT_RATING <- as.factor(Data$CONTENT_RATING)
+Data1$spam <- as.factor(Data$spam)
+###association rules applied ###
+rules<-apriori(Data1, parameter=list(supp=.01, conf=.1),appearance =list(default="lhs",rhs="spam=1"), control=list(verbose=F))
+
+rules<-sort(rules ,decreasing=TRUE,by="confidence") 
+inspect(rules[1:5])  #inspect the top 5 rules which were sorted by confidence
+
+library(arulesViz)
+plot(rules,measure=c("confidence","support"),shading="lift") #Plot the cofidence vs support and shade the life to get a good idea of where the rules range is 
+
+plot(rules, method="matrix3D" ,measure="lift") #this is a 3d representtion of all the antecedents and consequents with lift shown
+
+```
+
